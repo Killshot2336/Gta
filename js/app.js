@@ -33,22 +33,44 @@ import {
   scratch,
   spendable,
 } from "./logic.js";
+import {
+  CHAPTER_NAMES,
+  bodyNudge,
+  carVerdict,
+  currentMission,
+  doorOpen,
+  focusLine,
+  inSearch,
+  missionList,
+  quitSafe,
+  registeredCount,
+  repairWorth,
+  routeDollar,
+  sheetBlock,
+  sheetLine,
+  SHEET_ROWS,
+  switchLanding,
+  viceGap,
+  chapterTraps,
+} from "./ops.js";
 
 const APPS = [
   { id: "helper", name: "Helper", page: 0, dock: true, wash: "#3a2e1c", mark: "AI" },
   { id: "heat", name: "Heat", page: 0, dock: true, wash: "#3a1614", mark: "★" },
   { id: "heists", name: "Heists", page: 0, dock: true, wash: "#2a241c", mark: "H" },
-  { id: "street", name: "Street", page: 0, wash: "#242018", mark: "S" },
+  { id: "sheet", name: "Sheet", page: 0, wash: "#3a1820", mark: "ID" },
+  { id: "story", name: "Story", page: 0, wash: "#241c14", mark: "1" },
+  { id: "street", name: "Street", page: 1, wash: "#242018", mark: "S" },
   { id: "stakeout", name: "Stakeout", page: 0, dock: true, wash: "#14302c", mark: "St" },
-  { id: "map", name: "Map", page: 0, wash: "#142833", mark: "M" },
-  { id: "leads", name: "Leads", page: 0, wash: "#2a221c", mark: "J" },
-  { id: "tapes", name: "Tapes", page: 0, wash: "#241c18", mark: "T" },
+  { id: "map", name: "Map", page: 1, wash: "#142833", mark: "M" },
+  { id: "leads", name: "Leads", page: 1, wash: "#2a221c", mark: "J" },
+  { id: "tapes", name: "Tapes", page: 1, wash: "#241c18", mark: "T" },
   { id: "motor", name: "Motor", page: 1, wash: "#241810", mark: "C" },
   { id: "buckme", name: "BuckMe", page: 1, wash: "#2a2414", mark: "$" },
   { id: "waink", name: "WAiNK", page: 1, wash: "#1c2430", mark: "W" },
   { id: "calc", name: "Calculator", page: 1, wash: "#1a241c", mark: "=" },
-  { id: "contacts", name: "Contacts", page: 1, wash: "#241c22", mark: "@" },
-  { id: "news", name: "News", page: 1, wash: "#201818", mark: "N" },
+  { id: "contacts", name: "Contacts", page: 2, wash: "#241c22", mark: "@" },
+  { id: "news", name: "News", page: 2, wash: "#201818", mark: "N" },
   { id: "fitness", name: "Fitness", page: 1, wash: "#18241c", mark: "F" },
   { id: "settings", name: "Settings", page: 1, wash: "#1c1c1c", mark: "*" },
 ];
@@ -130,6 +152,8 @@ function bodyHtml() {
     lock: renderLock,
     home: renderHome,
     heat: renderHeat,
+    sheet: renderSheet,
+    story: renderStory,
     scores: renderScores,
     score: renderScore,
     clock: renderClock,
@@ -173,11 +197,21 @@ function adviceCard(prompt, ctx = {}) {
 
 function renderLock() {
   const minutes = gameMinutesNow(state);
+  const safe = quitSafe(state);
+  const mission = currentMission(state);
   return `<section class="lock">
     <p class="kicker">Leonida</p>
     <h1>${esc(minutes == null ? "Dossier" : formatGameTime(minutes))}</h1>
-    <p class="sub">${esc(regionName(state.here))} · ${esc(state.settings.standing)}</p>
-    ${adviceCard("what now")}
+    <p class="${safe.ok ? "good" : "bad"}"><span class="lamp ${safe.ok ? "on" : ""}"></span>${safe.ok ? "Quit-safe" : "Do not quit"}</p>
+    ${safe.ok ? "" : `<p>${esc(safe.reasons[0])}</p>`}
+    <p>${esc(sheetLine(state))}</p>
+    ${inSearch(state) ? `<p class="bad">You are in the search area and you still match the description.</p>` : ""}
+    <p class="sub">${esc(mission?.name || "No mission")} · Vice City ${esc(money(viceGap(state)))} short · tomorrow ${esc(money(state.bank.tomorrow))}</p>
+    <div class="row">
+      <button type="button" data-act="open" data-id="sheet">Sheet</button>
+      <button type="button" data-act="open" data-id="buckme">Money</button>
+      <button type="button" data-act="open" data-id="story">Story</button>
+    </div>
     <button type="button" class="primary" data-act="unlock">Open</button>
   </section>`;
 }
@@ -187,13 +221,12 @@ function renderHome() {
   const apps = APPS.filter((app) => app.page === page);
   return `<section class="home">
     <p class="kicker">Phone</p>
-    <h1>${page === 0 ? "Work" : "Day"}</h1>
+    <h1>${["Work", "Day", "People"][page] || "Phone"}</h1>
     <div class="grid">
       ${apps.map((app) => `<button type="button" class="app" data-act="open" data-id="${app.id}"><span class="blob" style="--wash:${app.wash}">${esc(app.mark)}</span>${esc(app.name)}</button>`).join("")}
     </div>
     <div class="pager">
-      <button type="button" class="dot ${page === 0 ? "on" : ""}" data-act="page" data-id="0" aria-label="Work"></button>
-      <button type="button" class="dot ${page === 1 ? "on" : ""}" data-act="page" data-id="1" aria-label="Day"></button>
+      ${[0, 1, 2].map((index) => `<button type="button" class="dot ${page === index ? "on" : ""}" data-act="page" data-id="${index}" aria-label="Page ${index + 1}"></button>`).join("")}
     </div>
   </section>`;
 }
@@ -226,8 +259,11 @@ function renderHeat() {
         ${icons.map(([id, label]) => `<button type="button" class="${state.heat.icons[id] ? "on" : ""}" data-act="icon" data-id="${id}">${esc(label)}</button>`).join("")}
       </div>
       ${clear ? `<p class="sub">Your ${state.heat.stars}★ chases clear in about ${esc(formatDuration(clear.median))} over ${clear.n} tapes.</p>` : ""}
+      ${state.heat.icons.weapon ? `<button type="button" class="primary" data-act="drop-gun">${state.suspect.weaponOwned ? "Drop it. Owned guns return to the trunk." : "Stash it. This gun was never stored."}</button>` : ""}
+      ${state.story.scannerRegion ? `<p class="formula">Scanner pinned to ${esc(regionName(state.story.scannerRegion))}.</p>` : ""}
       ${adviceCard("heat")}
       <button type="button" class="danger" data-act="open-bust">Busted</button>
+      ${renderBustPreview()}
     </div>`;
 }
 
@@ -251,7 +287,7 @@ function scoreById(id) {
 function renderScore() {
   const score = scoreById(state.nav.scoreId);
   if (!score) return `${bar("Score")}<p>That file is gone.</p>`;
-  const blockers = armBlockers(state, score);
+  const blockers = [...armBlockers(state, score), ...sheetBlock(state)];
   const route = routeOf(score);
   return `${bar(score.kind === "heist" ? "Heist" : "Street")}
     <div class="stack">
@@ -535,6 +571,67 @@ function mapSvg() {
   </svg>`;
 }
 
+function renderSheet() {
+  const row = (key, label, group) => `<button type="button" class="${state.suspect[group][key] ? "primary" : "ghost"}" data-act="sheet-bit" data-id="${group}:${key}">${state.suspect[group][key] ? "On" : "Off"} ${esc(label)}</button>`;
+  return `${bar("Suspect sheet")}
+    <div class="stack">
+      <p>${esc(sheetLine(state))}</p>
+      ${inSearch(state) ? `<p class="bad">You walked back into ${esc(regionName(state.suspect.searchRegion))} and you still match.</p>` : ""}
+      <p class="kicker">What they wrote down</p>
+      <div class="chips">${SHEET_ROWS.map((item) => row(item.id, item.label, "seen")).join("")}</div>
+      <p class="kicker">What you look like now</p>
+      <div class="chips">${SHEET_ROWS.map((item) => row(item.id, item.label, "now")).join("")}</div>
+      <button type="button" class="primary" data-act="saw-me">They saw me like this</button>
+      <button type="button" data-act="sheet-clear">Description broken</button>
+      <button type="button" class="${state.suspect.weaponOwned ? "primary" : "ghost"}" data-act="weapon-owned">${state.suspect.weaponOwned ? "This gun is owned" : "This gun was stolen"}</button>
+      <p class="kicker">Trunk</p>
+      <button type="button" class="${state.kit.spareOutfit ? "primary" : "ghost"}" data-act="kit" data-id="spareOutfit">${state.kit.spareOutfit ? "Spare outfit in the trunk" : "No spare outfit"}</button>
+      <button type="button" class="${state.kit.uniqueOnBack ? "primary" : "ghost"}" data-act="kit" data-id="uniqueOnBack">${state.kit.uniqueOnBack ? "Unique gun is on your back" : "Unique guns are in the trunk"}</button>
+      <button type="button" class="${state.kit.goodsOnYou ? "primary" : "ghost"}" data-act="kit" data-id="goodsOnYou">${state.kit.goodsOnYou ? "Goods are on you" : "Goods are sold"}</button>
+      <p class="sub">${state.suspect.searchRegion ? `Search area: ${esc(regionName(state.suspect.searchRegion))}` : "When the stars drop, this region becomes the search area until every row breaks."}</p>
+    </div>`;
+}
+
+function renderStory() {
+  const chapter = state.story.chapter || 1;
+  const mission = currentMission(state);
+  const traps = chapterTraps(state);
+  const open = doorOpen(state);
+  return `${bar(CHAPTER_NAMES[chapter] || "Story")}
+    <div class="stack">
+      <div class="row">
+        ${[1, 2, 3, 4, 5].map((number) => `<button type="button" class="${chapter === number ? "primary" : "ghost"}" data-act="chapter" data-id="${number}">${number}</button>`).join("")}
+      </div>
+      <p class="sub">${esc(CHAPTER_NAMES[chapter] || "")}</p>
+      ${missionList(chapter).map((item) => `<button type="button" class="item" data-act="mission" data-id="${item.id}">${state.story.missionId === item.id ? "●" : "○"} ${esc(item.name)}</button>`).join("")}
+      ${mission ? `<article class="card"><strong>${esc(mission.name)}</strong><p>${esc(mission.line)}</p>${(mission.buttons || []).map((button) => `<p class="formula">${esc(button)}</p>`).join("")}</article>` : ""}
+      <button type="button" class="${state.story.inMission ? "primary" : "ghost"}" data-act="in-mission">${state.story.inMission ? "Inside the mission" : "Between missions"}</button>
+      <p class="kicker">Before the next chapter</p>
+      ${traps.map((trap) => `<div class="row">
+        <button type="button" class="${trap.done || state.story.waived[trap.id] ? "primary" : "ghost"}" data-act="trap" data-id="${trap.id}">${trap.done ? "Done" : state.story.waived[trap.id] ? "Waived" : "Still"} ${esc(trap.label)}</button>
+        ${trap.done ? "" : `<button type="button" class="ghost" data-act="waive" data-id="${trap.id}">Waive</button>`}
+      </div>`).join("")}
+      <button type="button" class="primary" data-act="next-chapter" ${open && chapter < 5 ? "" : "disabled"}>${open ? "Open the next chapter" : "The door stays shut"}</button>
+      <label class="field">Scanner district
+        <select data-bind="story" data-field="scannerRegion">
+          <option value="">None</option>
+          ${REGIONS.map((region) => `<option value="${region.id}" ${state.story.scannerRegion === region.id ? "selected" : ""}>${esc(region.name)}</option>`).join("")}
+        </select>
+      </label>
+    </div>`;
+}
+
+function renderBustPreview() {
+  const car = state.vehicles.find((item) => item.id === state.activeVehicleId);
+  const lines = [
+    `Pocket ${money(state.bank.pocket || state.bank.cash)} dies if you are wasted or busted.`,
+    `Checking ${money(state.bank.checking)} and savings ${money(state.bank.family)} stay.`,
+    state.bank.goods ? `Goods ${money(state.bank.goods)} are not spendable until a fence buys them.` : "No goods on the book.",
+    car?.registered ? `${car.name} is registered. It can be delivered.` : car ? `${car.name} is not registered.` : "No active car.",
+  ];
+  return `<article class="card">${lines.map((line) => `<p>${esc(line)}</p>`).join("")}</article>`;
+}
+
 function renderLeads() {
   const levels = ["professional", "hardened", "violent", "psycho", "irredeemable"];
   const bond = state.settings.relationship < 25 ? "Distant" : state.settings.relationship < 50 ? "Warming" : state.settings.relationship < 75 ? "Close" : "Locked in";
@@ -544,13 +641,16 @@ function renderLeads() {
         <button type="button" class="${state.settings.lead === "jason" ? "primary" : "ghost"}" data-act="lead" data-id="jason">Jason</button>
         <button type="button" class="${state.settings.lead === "lucia" ? "primary" : "ghost"}" data-act="lead" data-id="lucia">Lucia</button>
       </div>
-      <label class="field">The other one is<input data-bind="setting" data-field="otherWhere" value="${esc(state.settings.otherWhere)}"></label>
+      <p class="formula">${esc(switchLanding(state, state.settings.lead === "jason" ? "lucia" : "jason"))}</p>
+      <label class="field">Jason was last at<input data-bind="where" data-id="jason" value="${esc(state.where.jason)}"></label>
+      <label class="field">Lucia was last at<input data-bind="where" data-id="lucia" value="${esc(state.where.lucia)}"></label>
       <label class="field">Standing
         <select data-bind="setting" data-field="standing">
           ${levels.map((level) => `<option ${state.settings.standing === level ? "selected" : ""}>${level}</option>`).join("")}
         </select>
       </label>
-      <p class="sub">Both start at Hardened. Irredeemable stays, in the game and on this phone, once you have actually hit it.</p>
+      <p class="sub">Both start at Hardened. Irredeemable stays once you confirm it.</p>
+      ${state.irredeemableLocked ? `<p class="bad">Irredeemable is locked.</p>` : `<button type="button" class="danger" data-act="lock-ruin">Confirm Irredeemable. It does not come off.</button>`}
       <label class="field">Relationship ${state.settings.relationship} · ${bond}
         <input type="range" min="0" max="100" data-bind="setting" data-field="relationship" data-type="number" value="${state.settings.relationship}">
       </label>
@@ -565,12 +665,21 @@ function renderLeads() {
 function renderMotor() {
   return `${bar("Motor")}
     <div class="stack">
+      <p class="sub">Garage slots ${registeredCount(state)} / ${state.garageSlots}</p>
+      <label class="field">Slots you own<input type="number" min="0" data-bind="slots" value="${state.garageSlots}"></label>
       ${state.vehicles.map((car) => {
         const math = motorMath(car);
+        const verdict = carVerdict(car, registeredCount(state), state.garageSlots);
+        const worth = repairWorth(car);
         return `<article class="card">
           <strong>${esc(car.name)}</strong>
+          <p class="bigresult">${esc(verdict.word)}</p>
+          <p class="basis">${esc(verdict.why)}</p>
           <p class="sub">${esc(car.kind)} · tracker ${esc(car.tracker)} · fuel ${Math.round((car.fuel || 0) * 100)}%</p>
           <p class="formula">Keep costs ${esc(money(math.keep))}. Fencing pays ${esc(money(math.walk))}.</p>
+          ${worth == null ? "" : `<p>${worth ? "Repair is worth it." : "Skip the repair."}</p>`}
+          <label class="field">Condition bonus<input type="number" data-bind="car" data-id="${car.id}" data-field="conditionBonus" value="${car.conditionBonus || 0}"></label>
+          <button type="button" class="${car.registered ? "primary" : "ghost"}" data-act="register-car" data-id="${car.id}">${car.registered ? "Registered" : "Not registered"}</button>
           <button type="button" class="${state.activeVehicleId === car.id ? "primary" : "ghost"}" data-act="active-car" data-id="${car.id}">${state.activeVehicleId === car.id ? "Active" : "Make active"}</button>
         </article>`;
       }).join("") || `<p class="sub">Scan a car in WAiNK and it lands here.</p>`}
@@ -587,14 +696,31 @@ function renderMotor() {
 }
 
 function renderBank() {
+  const safe = quitSafe(state);
   return `${bar("BuckMe")}
     <div class="stack">
-      <p class="bigresult">${esc(money(spendable(state)))}</p>
-      <p class="basis">Spendable is cash plus checking. Family savings stays out.</p>
-      <label class="field">Cash<input type="number" data-bind="bank" data-field="cash" value="${state.bank.cash}"></label>
+      <p class="${safe.ok ? "good" : "bad"}">${safe.ok ? "Quit-safe" : safe.reasons[0]}</p>
+      <p class="bigresult">${esc(money(viceGap(state)))} short of Vice City</p>
+      <p class="basis">Vice City counts checking and savings. Pocket and tomorrow money stay out until they land.</p>
+      <label class="field">Amount<input id="pileAmount" type="number" value="0"></label>
+      <div class="chips">
+        <button type="button" data-act="route" data-id="pocket">Pocket</button>
+        <button type="button" data-act="route" data-id="goods">Goods</button>
+        <button type="button" data-act="route" data-id="checking">Checking</button>
+        <button type="button" data-act="route" data-id="savings">Savings</button>
+        <button type="button" data-act="route" data-id="tomorrow">Tomorrow</button>
+      </div>
+      <label class="field">Pocket<input type="number" data-bind="bank" data-field="pocket" value="${state.bank.pocket}"></label>
+      <label class="field">Goods<input type="number" data-bind="bank" data-field="goods" value="${state.bank.goods}"></label>
+      <label class="field">Tomorrow<input type="number" data-bind="bank" data-field="tomorrow" value="${state.bank.tomorrow}"></label>
       <label class="field">Checking<input type="number" data-bind="bank" data-field="checking" value="${state.bank.checking}"></label>
       <label class="field">Family savings<input type="number" data-bind="bank" data-field="family" value="${state.bank.family}"></label>
-      <p class="sub">Locked: ${esc(money(state.bank.family))}</p>
+      <label class="field">Checking cap<input type="number" data-bind="bank" data-field="checkingCap" value="${state.bank.checkingCap}"></label>
+      <label class="field">Savings goal<input type="number" data-bind="bank" data-field="savingsGoal" value="${state.bank.savingsGoal}"></label>
+      <label class="field">Vice City fund<input type="number" data-bind="bank" data-field="viceGoal" value="${state.bank.viceGoal}"></label>
+      <label class="field">Pocket you keep for cash bills<input type="number" data-bind="bank" data-field="pocketKeep" value="${state.bank.pocketKeep}"></label>
+      <button type="button" data-act="land-tomorrow">Tomorrow money landed</button>
+      ${renderBustPreview()}
     </div>`;
 }
 
@@ -615,6 +741,7 @@ function renderWaink() {
       <label class="field">Register cost<input id="carRegister" type="number" value="0"></label>
       <label class="field">Repair<input id="carRepair" type="number" value="0"></label>
       <label class="field">Fence payout<input id="carFence" type="number" value="0"></label>
+      <label class="field">Condition bonus<input id="carBonus" type="number" value="0"></label>
       <label class="field">Tracker cost<input id="carTrackerCost" type="number" value="0"></label>
       <label class="field">Fuel %<input id="carFuel" type="number" value="80"></label>
       <button type="button" class="primary" data-act="save-car">Save scan</button>
@@ -677,7 +804,8 @@ function calcPane() {
     const car = state.vehicles.find((item) => item.id === state.activeVehicleId);
     if (!car) return `<p class="sub">No active car.</p>`;
     const math = motorMath(car);
-    return `<p>${esc(car.name)}</p><p class="formula">Keep costs ${esc(money(math.keep))}.</p><p class="formula">Fencing pays ${esc(money(math.walk))}.</p><p class="basis">Those are different kinds of money. The phone shows both and does not pick for you.</p>`;
+    const verdict = carVerdict(car, registeredCount(state), state.garageSlots);
+    return `<p>${esc(car.name)}</p><p class="bigresult">${esc(verdict.word)}</p><p class="basis">${esc(verdict.why)}</p><p class="formula">Keep costs ${esc(money(math.keep))}.</p><p class="formula">Fencing pays ${esc(money(math.walk))}.</p>`;
   }
   if (tab === "bank") {
     return `<p class="bigresult">${esc(money(spendable(state)))}</p><p class="basis">cash + checking. Family savings ${esc(money(state.bank.family))} is locked.</p>`;
@@ -709,10 +837,24 @@ function renderNews() {
 }
 
 function renderFitness() {
+  const lead = state.settings.lead || "lucia";
+  const body = state.bodies[lead];
+  const name = lead === "jason" ? "Jason" : "Lucia";
+  const nudge = bodyNudge(state);
   return `${bar("Fitness")}
     <div class="stack">
-      ${["strength", "cardio", "focus"].map((key) => `<label class="field">${key} ${state.fitness[key]}/4<input type="range" min="1" max="4" step="1" data-bind="fitness" data-field="${key}" data-type="number" value="${state.fitness[key]}"></label>`).join("")}
-      <p class="sub">Copy the three numbers from the in-game Fitness app. The gym raises them. This phone only remembers what you set.</p>
+      <p>${esc(name)}</p>
+      <p>${esc(focusLine(state))}</p>
+      ${nudge ? `<p class="formula">${esc(nudge)}</p>` : ""}
+      ${["strength", "cardio", "focus"].map((key) => `<label class="field">${key} ${body[key]}/4<input type="range" min="1" max="4" step="1" data-bind="body" data-id="${lead}" data-field="${key}" data-type="number" value="${body[key]}"></label>`).join("")}
+      <button type="button" class="${body.windowOpen ? "primary" : "ghost"}" data-act="window" data-id="${lead}">${body.windowOpen ? "Workout window is open" : "Window is shut"}</button>
+      <label class="field">Meter
+        <select data-bind="body" data-id="${lead}" data-field="meter">
+          <option value="full" ${body.meter === "full" ? "selected" : ""}>Full</option>
+          <option value="low" ${body.meter === "low" ? "selected" : ""}>Low</option>
+        </select>
+      </label>
+      <p class="sub">Focus out of 4 is the stat. The meter is what slow motion spends. A gym visit with the other lead trains both.</p>
     </div>`;
 }
 
@@ -762,8 +904,32 @@ function applyBind(target) {
   const field = target.dataset.field;
   let value = target.type === "checkbox" ? target.checked : target.value;
   if (target.dataset.type === "number" || target.type === "number") value = Number(value);
-  if (kind === "setting") state.settings[field] = value;
-  else if (kind === "bank") state.bank[field] = Number(value) || 0;
+  if (kind === "setting") {
+    if (field === "standing" && value === "irredeemable" && !state.irredeemableLocked) {
+      state.toast = "Irredeemable stays. Confirm it on this screen.";
+      saveState(state);
+      render();
+      return;
+    }
+    state.settings[field] = value;
+  }
+  else if (kind === "bank") {
+    state.bank[field] = Number(value) || 0;
+    if (field === "cash") state.bank.pocket = state.bank.cash;
+    if (field === "pocket") state.bank.cash = state.bank.pocket;
+    if (field === "goods") state.kit.goodsOnYou = state.bank.goods > 0;
+  }
+  else if (kind === "where") state.where[target.dataset.id] = value;
+  else if (kind === "slots") state.garageSlots = Math.max(0, Number(value) || 0);
+  else if (kind === "story") state.story[field] = value;
+  else if (kind === "body") {
+    const body = state.bodies[target.dataset.id];
+    if (body) body[field] = field === "meter" ? value : Number(value);
+  }
+  else if (kind === "car") {
+    const car = state.vehicles.find((item) => item.id === target.dataset.id);
+    if (car) car[field] = target.type === "number" ? Number(value) : value;
+  }
   else if (kind === "calc") state.calc[field] = target.type === "number" ? Number(value) : value;
   else if (kind === "split") state.split[field] = value;
   else if (kind === "fitness") state.fitness[field] = Number(value);
@@ -882,10 +1048,13 @@ phone.addEventListener("click", (event) => {
   else if (act === "page") commit((draft) => { draft.homePage = Number(id); });
   else if (act === "stars") {
     commit((draft) => {
-      draft.heat.stars = Math.max(0, Math.min(6, draft.heat.stars + Number(id)));
+      const next = Math.max(0, Math.min(6, draft.heat.stars + Number(id)));
+      if (draft.heat.stars > 0 && next === 0 && draft.suspect.open && !draft.suspect.searchRegion) draft.suspect.searchRegion = draft.here;
+      draft.heat.stars = next;
       if (draft.live) draft.live.peakStars = Math.max(draft.live.peakStars, draft.heat.stars);
     });
     if (state.heat.stars >= 6 && state.settings.buzz && navigator.vibrate) navigator.vibrate([30, 40, 30]);
+    if (inSearch(state) && state.settings.buzz && navigator.vibrate) navigator.vibrate(80);
   } else if (act === "look") commit((draft) => { draft.heat.look = id; });
   else if (act === "flag") commit((draft) => { draft.heat[id] = !draft.heat[id]; });
   else if (act === "icon") commit((draft) => { draft.heat.icons[id] = !draft.heat.icons[id]; });
@@ -897,7 +1066,7 @@ phone.addEventListener("click", (event) => {
   } else if (act === "open-score") go({ name: "score", scoreId: id });
   else if (act === "arm") {
     const score = scoreById(id);
-    const blockers = armBlockers(state, score);
+    const blockers = [...armBlockers(state, score), ...sheetBlock(state)];
     if (blockers.length && target.dataset.force !== "1") {
       commit((draft) => { draft.toast = "Arm is shut. Read the reasons or override."; });
       return;
@@ -1032,7 +1201,65 @@ phone.addEventListener("click", (event) => {
       draft.learning.rules[id].down = 0;
     }
   });
-  else if (act === "here") commit((draft) => { draft.here = id; });
+  else if (act === "here") {
+    commit((draft) => { draft.here = id; });
+    if (inSearch(state) && state.settings.buzz && navigator.vibrate) navigator.vibrate([40, 30, 40]);
+    if (inSearch(state)) commit((draft) => { draft.toast = "You are back in the search area and you still match."; });
+  } else if (act === "sheet-bit") {
+    const [group, key] = String(id).split(":");
+    commit((draft) => { draft.suspect[group][key] = !draft.suspect[group][key]; });
+  } else if (act === "saw-me") commit((draft) => {
+    draft.suspect.seen = { ...draft.suspect.now };
+    draft.suspect.open = true;
+    draft.toast = sheetLine(draft);
+  });
+  else if (act === "sheet-clear") commit((draft) => {
+    if (sheetBlock(draft).length) {
+      draft.toast = "A row still matches. Break that one first.";
+      return;
+    }
+    draft.suspect.open = false;
+    draft.suspect.searchRegion = "";
+    draft.toast = "Description broken.";
+  });
+  else if (act === "weapon-owned") commit((draft) => { draft.suspect.weaponOwned = !draft.suspect.weaponOwned; });
+  else if (act === "kit") commit((draft) => { draft.kit[id] = !draft.kit[id]; });
+  else if (act === "drop-gun") commit((draft) => {
+    draft.heat.icons.weapon = false;
+    draft.suspect.now.weapon = false;
+    draft.toast = draft.suspect.weaponOwned ? "Dropped. It comes back to the trunk." : "Stash it. This one was never stored.";
+  });
+  else if (act === "chapter") commit((draft) => { draft.story.chapter = Number(id); });
+  else if (act === "mission") commit((draft) => { draft.story.missionId = id; });
+  else if (act === "in-mission") commit((draft) => { draft.story.inMission = !draft.story.inMission; });
+  else if (act === "trap") commit((draft) => { draft.story.checks[id] = !draft.story.checks[id]; });
+  else if (act === "waive") commit((draft) => { draft.story.waived[id] = !draft.story.waived[id]; });
+  else if (act === "next-chapter") commit((draft) => {
+    if (!doorOpen(draft) || draft.story.chapter >= 5) return;
+    draft.story.chapter += 1;
+    draft.story.missionId = missionList(draft.story.chapter)[0]?.id || "";
+    draft.story.checks = {};
+    draft.story.waived = {};
+    draft.toast = CHAPTER_NAMES[draft.story.chapter];
+  });
+  else if (act === "route") {
+    const amount = Number(document.getElementById("pileAmount")?.value || 0);
+    commit((draft) => { draft.toast = routeDollar(draft, id, amount); });
+  } else if (act === "land-tomorrow") commit((draft) => {
+    const due = draft.bank.tomorrow;
+    draft.bank.tomorrow = 0;
+    draft.toast = due ? routeDollar(draft, "checking", due) : "Nothing is due.";
+  });
+  else if (act === "lock-ruin") commit((draft) => {
+    draft.irredeemableLocked = true;
+    draft.settings.standing = "irredeemable";
+    draft.toast = "Irredeemable is locked.";
+  });
+  else if (act === "window") commit((draft) => { draft.bodies[id].windowOpen = !draft.bodies[id].windowOpen; });
+  else if (act === "register-car") commit((draft) => {
+    const car = draft.vehicles.find((item) => item.id === id);
+    if (car) car.registered = !car.registered;
+  });
   else if (act === "goose") commit((draft) => { draft.settings.gooseConfirmed = !draft.settings.gooseConfirmed; });
   else if (act === "add-pin") {
     const name = document.getElementById("pinName")?.value?.trim();
@@ -1049,7 +1276,15 @@ phone.addEventListener("click", (event) => {
         until: kind === "hot" ? Date.now() + 20 * 60 * 1000 : 0,
       });
     });
-  } else if (act === "lead") commit((draft) => { draft.settings.lead = id; });
+  } else if (act === "lead") {
+    if (id === state.settings.lead) return;
+    commit((draft) => {
+      const leaving = draft.settings.lead;
+      if (!draft.where[leaving]) draft.where[leaving] = regionName(draft.here);
+      draft.toast = switchLanding(draft, id);
+      draft.settings.lead = id;
+    });
+  }
   else if (act === "errand") commit((draft) => {
     const errand = draft.errands.find((item) => item.id === id);
     if (errand) errand.done = !errand.done;
@@ -1074,6 +1309,8 @@ phone.addEventListener("click", (event) => {
       register: Number(document.getElementById("carRegister")?.value || 0),
       repair: Number(document.getElementById("carRepair")?.value || 0),
       fence: Number(document.getElementById("carFence")?.value || 0),
+      conditionBonus: Number(document.getElementById("carBonus")?.value || 0),
+      registered: false,
       trackerCost: Number(document.getElementById("carTrackerCost")?.value || 0),
       fuel: Math.max(0, Math.min(1, Number(document.getElementById("carFuel")?.value || 0) / 100)),
     };

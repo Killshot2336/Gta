@@ -332,6 +332,23 @@ svg.leonida { width: 100%; height: auto; background: #0e1c24; border-radius: 18p
 
 .good { color: var(--good); }
 
+.lamp {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  border-radius: 99px;
+  background: #ff4d3a;
+  box-shadow: 0 0 10px #ff4d3a;
+}
+
+.lamp.on {
+  background: #b6f28a;
+  box-shadow: 0 0 10px #b6f28a;
+}
+
+button:disabled { opacity: 0.4; }
+
 .tag {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 10px;
