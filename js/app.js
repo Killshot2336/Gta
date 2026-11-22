@@ -53,26 +53,42 @@ import {
   viceGap,
   chapterTraps,
 } from "./ops.js";
+import { APP_VERSION, applyWorkout, moveCash, shopArrest } from "./life.js";
+import {
+  lockScreen,
+  moneyExtra,
+  renderClosetPage,
+  renderGaragePage,
+  renderHousePage,
+  renderStoryPage,
+  renderToday,
+  renderUsPage,
+  renderWorkPage,
+} from "./screens.js";
 
 const APPS = [
-  { id: "helper", name: "Helper", page: 0, dock: true, wash: "#3a2e1c", mark: "AI" },
-  { id: "heat", name: "Heat", page: 0, dock: true, wash: "#3a1614", mark: "★" },
-  { id: "heists", name: "Heists", page: 0, dock: true, wash: "#2a241c", mark: "H" },
-  { id: "sheet", name: "Sheet", page: 0, wash: "#3a1820", mark: "ID" },
-  { id: "story", name: "Story", page: 0, wash: "#241c14", mark: "1" },
-  { id: "street", name: "Street", page: 1, wash: "#242018", mark: "S" },
-  { id: "stakeout", name: "Stakeout", page: 0, dock: true, wash: "#14302c", mark: "St" },
+  { id: "today", name: "Today", page: 0, dock: true, wash: "#3a2e1c", mark: "Dy" },
+  { id: "story", name: "Story", page: 0, dock: true, wash: "#241c14", mark: "1" },
+  { id: "garage", name: "Garage", page: 0, dock: true, wash: "#241810", mark: "G" },
+  { id: "us", name: "Us", page: 0, dock: true, wash: "#2a221c", mark: "Us" },
+  { id: "house", name: "House", page: 0, wash: "#2c2418", mark: "Hm" },
+  { id: "closet", name: "Closet", page: 0, wash: "#3a1820", mark: "Cl" },
+  { id: "buckme", name: "BuckMe", page: 0, wash: "#2a2414", mark: "$" },
+  { id: "work", name: "Work", page: 0, wash: "#242018", mark: "Wk" },
   { id: "map", name: "Map", page: 1, wash: "#142833", mark: "M" },
-  { id: "leads", name: "Leads", page: 1, wash: "#2a221c", mark: "J" },
-  { id: "tapes", name: "Tapes", page: 1, wash: "#241c18", mark: "T" },
-  { id: "motor", name: "Motor", page: 1, wash: "#241810", mark: "C" },
-  { id: "buckme", name: "BuckMe", page: 1, wash: "#2a2414", mark: "$" },
-  { id: "waink", name: "WAiNK", page: 1, wash: "#1c2430", mark: "W" },
-  { id: "calc", name: "Calculator", page: 1, wash: "#1a241c", mark: "=" },
+  { id: "heat", name: "Heat", page: 1, wash: "#3a1614", mark: "★" },
+  { id: "sheet", name: "Sheet", page: 1, wash: "#3a1820", mark: "ID" },
+  { id: "fitness", name: "Fitness", page: 1, wash: "#18241c", mark: "F" },
+  { id: "waink", name: "WAiNK", page: 1, wash: "#1c2430", mark: "Sc" },
+  { id: "helper", name: "Helper", page: 1, wash: "#3a2e1c", mark: "AI" },
+  { id: "heists", name: "Heists", page: 1, wash: "#2a241c", mark: "H" },
+  { id: "street", name: "Street", page: 1, wash: "#242018", mark: "S" },
+  { id: "stakeout", name: "Stakeout", page: 2, wash: "#14302c", mark: "St" },
+  { id: "tapes", name: "Tapes", page: 2, wash: "#241c18", mark: "T" },
+  { id: "calc", name: "Calculator", page: 2, wash: "#1a241c", mark: "=" },
   { id: "contacts", name: "Contacts", page: 2, wash: "#241c22", mark: "@" },
   { id: "news", name: "News", page: 2, wash: "#201818", mark: "N" },
-  { id: "fitness", name: "Fitness", page: 1, wash: "#18241c", mark: "F" },
-  { id: "settings", name: "Settings", page: 1, wash: "#1c1c1c", mark: "*" },
+  { id: "settings", name: "Settings", page: 2, wash: "#1c1c1c", mark: "*" },
 ];
 
 let state = loadState();
@@ -144,6 +160,8 @@ function back() {
 
 function openApp(name, extra = {}) {
   if (name === "heists" || name === "street") go({ name: "scores", kind: name === "street" ? "street" : "heist" });
+  else if (name === "motor" || name === "garage") go({ name: "garage" });
+  else if (name === "leads" || name === "us") go({ name: "us" });
   else go({ name, ...extra });
 }
 
@@ -151,9 +169,15 @@ function bodyHtml() {
   const screens = {
     lock: renderLock,
     home: renderHome,
+    today: () => renderToday(state),
+    garage: () => renderGaragePage(state),
+    us: () => renderUsPage(state),
+    house: () => renderHousePage(state),
+    closet: () => renderClosetPage(state),
+    work: () => renderWorkPage(state),
     heat: renderHeat,
     sheet: renderSheet,
-    story: renderStory,
+    story: () => renderStoryPage(state),
     scores: renderScores,
     score: renderScore,
     clock: renderClock,
@@ -196,24 +220,7 @@ function adviceCard(prompt, ctx = {}) {
 }
 
 function renderLock() {
-  const minutes = gameMinutesNow(state);
-  const safe = quitSafe(state);
-  const mission = currentMission(state);
-  return `<section class="lock">
-    <p class="kicker">Leonida</p>
-    <h1>${esc(minutes == null ? "Dossier" : formatGameTime(minutes))}</h1>
-    <p class="${safe.ok ? "good" : "bad"}"><span class="lamp ${safe.ok ? "on" : ""}"></span>${safe.ok ? "Quit-safe" : "Do not quit"}</p>
-    ${safe.ok ? "" : `<p>${esc(safe.reasons[0])}</p>`}
-    <p>${esc(sheetLine(state))}</p>
-    ${inSearch(state) ? `<p class="bad">You are in the search area and you still match the description.</p>` : ""}
-    <p class="sub">${esc(mission?.name || "No mission")} · Vice City ${esc(money(viceGap(state)))} short · tomorrow ${esc(money(state.bank.tomorrow))}</p>
-    <div class="row">
-      <button type="button" data-act="open" data-id="sheet">Sheet</button>
-      <button type="button" data-act="open" data-id="buckme">Money</button>
-      <button type="button" data-act="open" data-id="story">Story</button>
-    </div>
-    <button type="button" class="primary" data-act="unlock">Open</button>
-  </section>`;
+  return lockScreen(state);
 }
 
 function renderHome() {
@@ -221,7 +228,7 @@ function renderHome() {
   const apps = APPS.filter((app) => app.page === page);
   return `<section class="home">
     <p class="kicker">Phone</p>
-    <h1>${["Work", "Day", "People"][page] || "Phone"}</h1>
+    <h1>${["Life", "City", "Tools"][page] || "Phone"}</h1>
     <div class="grid">
       ${apps.map((app) => `<button type="button" class="app" data-act="open" data-id="${app.id}"><span class="blob" style="--wash:${app.wash}">${esc(app.mark)}</span>${esc(app.name)}</button>`).join("")}
     </div>
@@ -658,7 +665,7 @@ function renderLeads() {
       <label class="field">Jason's exit<input data-bind="split" data-field="jason" value="${esc(state.split.jason)}"></label>
       <label class="field">Lucia's exit<input data-bind="split" data-field="lucia" value="${esc(state.split.lucia)}"></label>
       <label class="field">Meet<input data-bind="split" data-field="meet" value="${esc(state.split.meet)}"></label>
-      ${state.settings.endingMatters && !state.scores.some((score) => score.status === "armed") ? `<div class="list">${state.errands.map((errand) => `<button type="button" class="item" data-act="errand" data-id="${errand.id}">${errand.done ? "✓" : "○"} ${esc(errand.name)}</button>`).join("")}</div>` : `<p class="sub">Errands hide while a score is armed.</p>`}
+      <div class="list">${state.errands.map((errand) => `<button type="button" class="item" data-act="errand" data-id="${errand.id}">${errand.done ? "✓" : "○"} ${esc(errand.name)}</button>`).join("")}</div>
     </div>`;
 }
 
@@ -702,6 +709,7 @@ function renderBank() {
       <p class="${safe.ok ? "good" : "bad"}">${safe.ok ? "Quit-safe" : safe.reasons[0]}</p>
       <p class="bigresult">${esc(money(viceGap(state)))} short of Vice City</p>
       <p class="basis">Vice City counts checking and savings. Pocket and tomorrow money stay out until they land.</p>
+      ${moneyExtra(state)}
       <label class="field">Amount<input id="pileAmount" type="number" value="0"></label>
       <div class="chips">
         <button type="button" data-act="route" data-id="pocket">Pocket</button>
@@ -863,6 +871,7 @@ function renderSettings() {
   const timeValue = minutes == null ? "" : `${String(Math.floor(minutes / 60) % 24).padStart(2, "0")}:${String(Math.floor(minutes % 60)).padStart(2, "0")}`;
   return `${bar("Settings")}
     <div class="stack">
+      <p class="sub">Leonida ${esc(APP_VERSION)}. Hard-refresh if the dock still shows Heat and Heists.</p>
       ${toggle("couch", "Couch mode")}
       ${toggle("buzz", "Buzz")}
       ${toggle("sound", "Click")}
@@ -898,13 +907,27 @@ function renderBust() {
     </div>`;
 }
 
+function setPath(obj, path, value) {
+  const parts = String(path || "").split(".");
+  let cursor = obj;
+  for (let index = 0; index < parts.length - 1; index += 1) cursor = cursor[parts[index]];
+  cursor[parts[parts.length - 1]] = value;
+}
+
 function applyBind(target) {
   const kind = target.dataset.bind;
   if (!kind) return;
   const field = target.dataset.field;
   let value = target.type === "checkbox" ? target.checked : target.value;
   if (target.dataset.type === "number" || target.type === "number") value = Number(value);
-  if (kind === "setting") {
+  if (kind === "life") setPath(state.life, field, value);
+  else if (kind === "plain") state[field] = value;
+  else if (kind === "note") {
+    const note = state.life.notes[target.dataset.id] || { fail: "", pack: "", replay: "", partner: "" };
+    note[field] = value;
+    state.life.notes[target.dataset.id] = note;
+  }
+  else if (kind === "setting") {
     if (field === "standing" && value === "irredeemable" && !state.irredeemableLocked) {
       state.toast = "Irredeemable stays. Confirm it on this screen.";
       saveState(state);
@@ -1229,7 +1252,12 @@ phone.addEventListener("click", (event) => {
     draft.suspect.now.weapon = false;
     draft.toast = draft.suspect.weaponOwned ? "Dropped. It comes back to the trunk." : "Stash it. This one was never stored.";
   });
-  else if (act === "chapter") commit((draft) => { draft.story.chapter = Number(id); });
+  else if (act === "chapter") commit((draft) => { draft.life.view = Number(id); });
+  else if (act === "iam-here") commit((draft) => {
+    draft.story.chapter = Number(id) || draft.life.view || draft.story.chapter;
+    draft.life.view = draft.story.chapter;
+    draft.life.shown[draft.story.chapter] = true;
+  });
   else if (act === "mission") commit((draft) => { draft.story.missionId = id; });
   else if (act === "in-mission") commit((draft) => { draft.story.inMission = !draft.story.inMission; });
   else if (act === "trap") commit((draft) => { draft.story.checks[id] = !draft.story.checks[id]; });
@@ -1237,9 +1265,11 @@ phone.addEventListener("click", (event) => {
   else if (act === "next-chapter") commit((draft) => {
     if (!doorOpen(draft) || draft.story.chapter >= 5) return;
     draft.story.chapter += 1;
+    draft.life.view = draft.story.chapter;
     draft.story.missionId = missionList(draft.story.chapter)[0]?.id || "";
     draft.story.checks = {};
     draft.story.waived = {};
+    draft.life.shown[draft.story.chapter] = true;
     draft.toast = CHAPTER_NAMES[draft.story.chapter];
   });
   else if (act === "route") {
@@ -1260,6 +1290,153 @@ phone.addEventListener("click", (event) => {
     const car = draft.vehicles.find((item) => item.id === id);
     if (car) car.registered = !car.registered;
   });
+  else if (act === "motel-paid") commit((draft) => { draft.life.motel.paid = !draft.life.motel.paid; });
+  else if (act === "coffee-done") commit((draft) => { draft.life.coffeeDone = !draft.life.coffeeDone; });
+  else if (act === "protein") commit((draft) => { draft.life.gym.protein = !draft.life.gym.protein; draft.life.gym.mealAt = Date.now(); });
+  else if (act === "stamp-pocket") commit((draft) => { draft.life.sessionPocket = draft.bank.pocket || draft.bank.cash || 0; draft.toast = "Pocket stamped."; });
+  else if (act === "move-cash") commit((draft) => { draft.toast = moveCash(draft, id); });
+  else if (act === "mute-move") commit((draft) => { draft.life.mutedMoves.push(id); draft.toast = "Next move."; });
+  else if (act === "house-bit") commit((draft) => {
+    draft.life.house[id] = !draft.life.house[id];
+    const errand = draft.errands.find((item) => item.id === id);
+    if (errand) errand.done = draft.life.house[id];
+    if (id === "meditate") draft.story.checks.meditate = draft.life.house.meditate;
+  });
+  else if (act === "add-key") {
+    const name = document.getElementById("keyName")?.value?.trim();
+    if (!name) return;
+    commit((draft) => { draft.life.keys.push({ id: uid(), name, done: false, waive: false }); });
+  } else if (act === "key-done" || act === "key-waive") commit((draft) => {
+    const job = draft.life.keys.find((item) => item.id === id);
+    if (!job) return;
+    if (act === "key-done") job.done = !job.done;
+    else job.waive = !job.waive;
+    draft.story.checks.keys = draft.life.keys.some((item) => item.done || item.waive);
+  });
+  else if (act === "place-have") commit((draft) => { draft.life.places[id].have = !draft.life.places[id].have; });
+  else if (act === "real-estate") commit((draft) => { draft.life.realEstate = !draft.life.realEstate; });
+  else if (act === "add-mission") {
+    const name = document.getElementById("missionName")?.value?.trim();
+    if (!name) return;
+    commit((draft) => {
+      draft.life.missions.push({ id: uid(), chapter: draft.story.chapter, name, line: document.getElementById("missionLine")?.value || "", done: false });
+    });
+  } else if (act === "custom-mission") commit((draft) => { draft.story.missionId = id; });
+  else if (act === "built-done") commit((draft) => {
+    draft.story.done[id] = !draft.story.done[id];
+    const custom = draft.life.missions.find((item) => item.id === id);
+    if (custom) custom.done = draft.story.done[id];
+  });
+  else if (act === "shade") commit((draft) => { draft.life.shown[id] = true; });
+  else if (act === "add-stranger") {
+    const name = document.getElementById("strangerName")?.value?.trim();
+    if (!name) return;
+    commit((draft) => { draft.life.strangers.push({ id: uid(), name, note: document.getElementById("strangerNote")?.value || "" }); });
+  } else if (act === "add-fork") {
+    const name = document.getElementById("forkName")?.value?.trim();
+    if (!name) return;
+    commit((draft) => {
+      draft.life.forks.push({ id: uid(), name, picked: document.getElementById("forkPicked")?.value || "", paid: Number(document.getElementById("forkPaid")?.value || 0) });
+    });
+  } else if (act === "add-unique") {
+    const name = document.getElementById("uniqueName")?.value?.trim();
+    if (!name) return;
+    commit((draft) => { draft.life.uniques.push({ id: uid(), name, trunk: true }); });
+  } else if (act === "unique-trunk") commit((draft) => {
+    const item = draft.life.uniques.find((row) => row.id === id);
+    if (item) item.trunk = !item.trunk;
+  });
+  else if (act === "add-hustle") {
+    const name = document.getElementById("hustleName")?.value?.trim();
+    if (!name) return;
+    commit((draft) => { draft.life.hustles.push({ id: uid(), name, pay: Number(document.getElementById("hustlePay")?.value || 0), done: false }); });
+  } else if (act === "hustle-done") commit((draft) => {
+    const job = draft.life.hustles.find((item) => item.id === id);
+    if (job) job.done = !job.done;
+  });
+  else if (act === "add-price") {
+    const name = document.getElementById("priceName")?.value?.trim();
+    if (!name) return;
+    commit((draft) => { draft.life.prices.push({ id: uid(), name, cost: Number(document.getElementById("priceCost")?.value || 0) }); });
+  } else if (act === "add-date") {
+    const place = document.getElementById("datePlace")?.value?.trim();
+    if (!place) return;
+    commit((draft) => {
+      draft.life.dates.push({ id: uid(), place, bought: document.getElementById("dateBought")?.value || "", moved: id === "1" });
+      if (id === "1") draft.settings.relationship = Math.min(100, Number(draft.settings.relationship) + 5);
+    });
+  } else if (act === "add-closet") {
+    const name = document.getElementById("outfitName")?.value?.trim();
+    if (!name) return;
+    commit((draft) => { draft.life.closet.push({ id: uid(), name }); draft.life.wearing = name; });
+  } else if (act === "wear") commit((draft) => {
+    const outfit = draft.life.closet.find((item) => item.id === id);
+    if (outfit) {
+      draft.life.wearing = outfit.name;
+      draft.suspect.now.clothes = false;
+    }
+  });
+  else if (act === "add-garage") {
+    const name = document.getElementById("garageName")?.value?.trim();
+    if (!name) return;
+    commit((draft) => {
+      draft.life.garages.push({ id: uid(), name, slots: Number(document.getElementById("garageSlots")?.value || 1), region: draft.here });
+      draft.garages = draft.life.garages;
+      draft.garageSlots = draft.life.garages.reduce((sum, garage) => sum + (Number(garage.slots) || 0), 0);
+    });
+  } else if (act === "daily-driver") commit((draft) => { draft.life.dailyDriverId = id; });
+  else if (act === "stolen-car") commit((draft) => {
+    draft.life.stolenIds = draft.life.stolenIds.includes(id) ? draft.life.stolenIds.filter((item) => item !== id) : [...draft.life.stolenIds, id];
+  });
+  else if (act === "sold-car") commit((draft) => {
+    const index = draft.vehicles.findIndex((item) => item.id === id);
+    if (index < 0) return;
+    const car = draft.vehicles[index];
+    const verdict = carVerdict(car, registeredCount(draft), draft.garageSlots);
+    draft.life.sold.push({ name: car.name, word: verdict.word, paid: Number(car.fence) || 0 });
+    draft.vehicles.splice(index, 1);
+    if (draft.activeVehicleId === id) draft.activeVehicleId = draft.vehicles[0]?.id || null;
+    if (draft.life.dailyDriverId === id) draft.life.dailyDriverId = "";
+  });
+  else if (act === "add-mod") {
+    const name = document.getElementById(`mod-${id}`)?.value?.trim();
+    if (!name) return;
+    commit((draft) => {
+      const car = draft.vehicles.find((item) => item.id === id);
+      if (!car) return;
+      car.mods = [...(car.mods || []), name];
+    });
+  } else if (act === "shop-go") {
+    const car = state.vehicles.find((item) => item.id === id);
+    if (shopArrest(car)) {
+      commit((draft) => { draft.toast = "Tracker is live. A mod shop will cuff you."; });
+      return;
+    }
+    commit((draft) => { draft.toast = `Clear to visit the ${target.dataset.shop} shop.`; });
+  } else if (act === "deliver") {
+    const car = state.vehicles.find((item) => item.id === id);
+    if (!car) return;
+    if (!car.registered) {
+      commit((draft) => { draft.toast = "Scooter Bros delivers registered cars only."; });
+      return;
+    }
+    const garage = state.life.garages[0];
+    commit((draft) => { draft.toast = `Have Scooter Bros send ${car.name}${garage ? ` to ${garage.name}` : ""}.`; });
+  } else if (act === "workout") commit((draft) => {
+    const gained = applyWorkout(draft, draft.settings.lead, false);
+    draft.toast = gained ? `Logged ${gained}%.` : "The day cap is used.";
+  });
+  else if (act === "workout-both") commit((draft) => {
+    const gained = applyWorkout(draft, draft.settings.lead, true);
+    draft.toast = gained ? "Both of you got the session." : "The day cap is used.";
+  });
+  else if (act === "new-day") commit((draft) => { draft.life.gym.today = { jason: 0, lucia: 0 }; });
+  else if (act === "dunk") commit((draft) => { draft.life.dunk = !draft.life.dunk; });
+  else if (act === "scanner-still") commit((draft) => { draft.life.scannerStill = !draft.life.scannerStill; });
+  else if (act === "fence-paid") {
+    const amount = Number(document.getElementById("pileAmount")?.value || 0);
+    commit((draft) => { draft.toast = routeDollar(draft, "checking", amount); });
+  }
   else if (act === "goose") commit((draft) => { draft.settings.gooseConfirmed = !draft.settings.gooseConfirmed; });
   else if (act === "add-pin") {
     const name = document.getElementById("pinName")?.value?.trim();
@@ -1388,7 +1565,11 @@ phone.addEventListener("click", (event) => {
       });
       draft.heat.stars = 0;
       const wake = document.getElementById("bustWhere")?.value?.trim();
-      if (wake) draft.pins.push({ id: uid(), name: wake, kind: "wake", region: draft.here, note: "woke up here", until: 0 });
+      if (wake) {
+        draft.pins.push({ id: uid(), name: wake, kind: "wake", region: draft.here, note: "woke up here", until: 0 });
+        draft.life.woke = wake;
+      }
+      if (document.getElementById("bustCash")?.checked) draft.life.bustCount += 1;
     });
     go({ name: "heat" });
   }
